@@ -68,8 +68,8 @@ def initialize_vector_store():
     try:
         # Read index name from file
         if not os.path.exists("vectorstore/index_name.txt"):
-            logger.error("Vector store index name not found. Please run vector_loader.py first.")
-            st.error("Vector store index name not found. Please run vector_loader.py first.")
+            logger.error("Vector store index name not found. Please run the application setup first.")
+            st.error("Vector store index name not found. Please run the start.sh script first to initialize the vector store.")
             st.stop()
             
         with open("vectorstore/index_name.txt", "r") as f:

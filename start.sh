@@ -62,16 +62,12 @@ fi
 echo "Waiting for ports to be released..."
 sleep 3
 
-# Check if the new modular architecture is available
-if [ -d "app" ] && [ -d "core" ] && [ -d "data" ] && [ -d "monitoring" ]; then
-  echo "Using modular architecture..."
-  
-  # Run vector_loader.py to initialize the vector store if needed
-  echo "Checking if vector store index exists..."
-  if [ ! -f "vectorstore/index_name.txt" ] && [ -z "$PINECONE_INDEX_NAME" ]; then
-    echo "Vector store index not found and no PINECONE_INDEX_NAME provided. Initializing vector store..."
-    # Use data module for vector store initialization
-    python -c "
+# Initialize vector store if needed
+echo "Checking if vector store index exists..."
+if [ ! -f "vectorstore/index_name.txt" ] && [ -z "$PINECONE_INDEX_NAME" ]; then
+  echo "Vector store index not found and no PINECONE_INDEX_NAME provided. Initializing vector store..."
+  # Use data module for vector store initialization
+  python -c "
 import os
 import sys
 import time
@@ -84,7 +80,7 @@ from data.vector_store import PineconeVectorStoreWrapper
 from langchain_openai import OpenAIEmbeddings
 
 # Initialize vector store
-pdf_path = os.environ.get('PDF_PATH', '/app/data/random machine learing pdf.pdf')
+pdf_path = os.environ.get('PDF_PATH', '/app/data/random_machine_learning_pdf.pdf')
 print(f'Initializing vector store from PDF: {pdf_path}')
 
 # Create document processor
@@ -120,36 +116,16 @@ processor.save_chunks_for_bm25(docs, 'data/document_chunks.txt')
 # Verify vector store initialization
 print('Vector store initialization complete')
 "
-    # Check if initialization was successful
-    if [ ! -f "vectorstore/index_name.txt" ]; then
-      echo "Vector store initialization failed!"
-      echo "Check environment variables: OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_ENVIRONMENT"
-      exit 1
-    else
-      echo "Vector store initialized successfully."
-    fi
+  # Check if initialization was successful
+  if [ ! -f "vectorstore/index_name.txt" ]; then
+    echo "Vector store initialization failed!"
+    echo "Check environment variables: OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_ENVIRONMENT"
+    exit 1
   else
-    echo "Vector store index already exists."
+    echo "Vector store initialized successfully."
   fi
 else
-  echo "Warning: Modular architecture not detected. Using legacy initialization..."
-  # Run vector_loader.py to initialize the vector store if needed
-  echo "Checking if vector store index exists..."
-  if [ ! -f "vectorstore/index_name.txt" ] && [ -z "$PINECONE_INDEX_NAME" ]; then
-    echo "Vector store index not found and no PINECONE_INDEX_NAME provided. Running vector_loader.py..."
-    python vector_loader.py
-    
-    # Check if vector_loader was successful
-    if [ ! -f "vectorstore/index_name.txt" ]; then
-      echo "Vector store initialization failed!"
-      echo "Check environment variables: OPENAI_API_KEY, PINECONE_API_KEY, PINECONE_ENVIRONMENT"
-      exit 1
-    else
-      echo "Vector store initialized successfully."
-    fi
-  else
-    echo "Vector store index already exists."
-  fi
+  echo "Vector store index already exists."
 fi
 
 # Start explicit metrics server using monitoring module if available

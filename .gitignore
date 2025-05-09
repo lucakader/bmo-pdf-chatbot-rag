@@ -23,6 +23,8 @@ var/
 
 # Environmental variables
 .env
+.env.*
+!.env.example
 
 # OS specific files
 .DS_Store
@@ -74,4 +76,8 @@ logs/
 # Testing
 .coverage
 htmlcov/
-.pytest_cache/ 
+.pytest_cache/
+
+# Instance-specific files
+targets.json
+vectorstore/index_name.txt 
