@@ -49,7 +49,7 @@ spec:
         - name: PYTHONPATH
           value: "/app:/app/python_modules:/app/app:/app/core:/app/data:/app/monitoring:/app/utils"
         - name: PDF_PATH
-          value: "/app/data/random machine learing pdf.pdf"
+          value: "/app/data/random_machine_learning_pdf.pdf"
         - name: PINECONE_INDEX_NAME
           valueFrom:
             configMapKeyRef:

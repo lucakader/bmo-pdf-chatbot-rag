@@ -26,8 +26,8 @@ if [ -z "$PINECONE_ENVIRONMENT" ]; then
 fi
 
 # Check if PDF file exists
-if [ ! -f "random machine learing pdf.pdf" ]; then
-  handle_error "PDF file not found! Please make sure 'random machine learing pdf.pdf' exists in the current directory."
+if [ ! -f "random_machine_learning_pdf.pdf" ]; then
+  handle_error "PDF file not found! Please make sure 'random_machine_learning_pdf.pdf' exists in the current directory."
 fi
 
 echo "Building the Docker image for the PDF Chatbot..."

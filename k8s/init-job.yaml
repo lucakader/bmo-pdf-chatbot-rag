@@ -48,7 +48,7 @@ spec:
         - name: VECTOR_INIT_TIMEOUT
           value: "1500"  # 25 minutes timeout for initialization
         - name: PDF_PATH
-          value: "/app/data/random machine learing pdf.pdf"
+          value: "/app/data/random_machine_learning_pdf.pdf"
         volumeMounts:
         - name: vectorstore
           mountPath: /app/vectorstore
