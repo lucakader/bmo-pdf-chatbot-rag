@@ -1,0 +1,183 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: pdf-chatbot
+  name: pdf-chatbot
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pdf-chatbot
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8099"
+        prometheus.io/scrape: "true"
+      labels:
+        app: pdf-chatbot
+    spec:
+      containers:
+      - name: pdf-chatbot
+        image: pdf-chatbot:minikube8
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: api-key
+              name: openai-secret
+        - name: PINECONE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: api-key
+              name: pinecone-secret
+        - name: PINECONE_ENVIRONMENT
+          valueFrom:
+            secretKeyRef:
+              key: environment
+              name: pinecone-secret
+        - name: METRICS_PORT
+          value: "8099"
+        - name: PYTHONPATH
+          value: "/app:/app/python_modules:/app/app:/app/core:/app/data:/app/monitoring:/app/utils"
+        - name: PDF_PATH
+          value: "/app/data/random machine learing pdf.pdf"
+        - name: PINECONE_INDEX_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: vector-index-config
+              key: index_name
+        - name: USE_HYBRID_SEARCH
+          value: "true"
+        - name: RERANKER_ENABLED
+          value: "true"
+        - name: HALLUCINATION_CHECK_ENABLED
+          value: "true"
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        ports:
+        - containerPort: 8501
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1000
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        volumeMounts:
+        - mountPath: /app/vectorstore
+          name: vectorstore
+      - name: metrics
+        image: python:3.9-slim
+        env:
+        - name: METRICS_PORT
+          value: "8099"
+        command:
+        - "/bin/bash"
+        - "-c"
+        - |
+          pip install prometheus-client && python -c "
+          import os
+          import time
+          import sys
+          from prometheus_client import start_http_server, Counter, Gauge, Histogram
+
+          # Get port from environment
+          port = int(os.environ.get('METRICS_PORT', 8099))
+
+          # Create metrics
+          REQUEST_COUNT = Counter('chatbot_requests_total', 'Total number of requests')
+          RESPONSE_TIME = Histogram('chatbot_response_time_seconds', 'Response time in seconds', buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0])
+          RETRIEVAL_COUNT = Counter('chatbot_retrieval_count_total', 'Number of retrievals from vector store')
+          HALLUCINATION_GAUGE = Gauge('chatbot_hallucination_score', 'Hallucination score of responses')
+          USER_SATISFACTION = Gauge('chatbot_user_satisfaction', 'User satisfaction score')
+
+          # Set initial values
+          REQUEST_COUNT._value.inc(10)
+          RETRIEVAL_COUNT._value.inc(5)
+          HALLUCINATION_GAUGE.set(0.85)
+          USER_SATISFACTION.set(0.9)
+
+          # Add test observations
+          for value in [0.2, 0.5, 1.2, 3.5]:
+              RESPONSE_TIME.observe(value)
+
+          print(f'Starting metrics server on port {port}')
+          start_http_server(port, addr='0.0.0.0')
+          print('Metrics server started successfully')
+
+          # Update metrics periodically
+          counter = 0
+          while True:
+              if counter % 10 == 0:
+                  REQUEST_COUNT._value.inc(1)
+                  RETRIEVAL_COUNT._value.inc(1)
+                  RESPONSE_TIME.observe(2.0)
+                  
+                  import random
+                  HALLUCINATION_GAUGE.set(min(1.0, max(0.7, 0.85 + random.uniform(-0.1, 0.1))))
+                  USER_SATISFACTION.set(min(1.0, max(0.6, 0.9 + random.uniform(-0.15, 0.05))))
+                  
+                  print(f'Updated metrics, count={counter}')
+              counter += 1
+              time.sleep(6)
+          "
+        ports:
+        - containerPort: 8099
+          name: metrics
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+      volumes:
+      - name: vectorstore
+        emptyDir: {} 

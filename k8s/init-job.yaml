@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pdf-chatbot-init
+  namespace: default
+spec:
+  backoffLimit: 3  # Number of retries before considering the job failed
+  activeDeadlineSeconds: 1800  # 30 minutes timeout for the entire job
+  ttlSecondsAfterFinished: 3600  # Delete completed job after 1 hour
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"  # Opt out of service mesh if present
+    spec:
+      containers:
+      - name: vector-loader
+        image: pdf-chatbot:minikube8
+        imagePullPolicy: IfNotPresent
+        command: 
+        - "sh"
+        - "-c"
+        - "cd /app && PYTHONPATH=/app:/app/python_modules python vector_loader.py --index-name pdf-chatbot-fc47e81f08"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: api-key
+        - name: PINECONE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: pinecone-secret
+              key: api-key
+        - name: PINECONE_ENVIRONMENT
+          valueFrom:
+            secretKeyRef:
+              name: pinecone-secret
+              key: environment
+        - name: PYTHONPATH
+          value: "/app:/app/python_modules:/app/app:/app/core:/app/data:/app/monitoring:/app/utils"
+        - name: VECTOR_INIT_TIMEOUT
+          value: "1500"  # 25 minutes timeout for initialization
+        - name: PDF_PATH
+          value: "/app/data/random machine learing pdf.pdf"
+        volumeMounts:
+        - name: vectorstore
+          mountPath: /app/vectorstore
+      restartPolicy: OnFailure
+      volumes:
+      - name: vectorstore
+        emptyDir: {} 

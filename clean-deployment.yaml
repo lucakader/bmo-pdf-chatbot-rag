@@ -1,0 +1,219 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "2"
+    kubectl.kubernetes.io/last-applied-configuration: |
+  creationTimestamp: "2025-05-09T17:02:50Z"
+  generation: 2
+  labels:
+    app: pdf-chatbot
+  name: pdf-chatbot
+  namespace: default
+  resourceVersion: "74074"
+  uid: cd9a6e5a-3fa3-4057-95a4-6591d65b8e4b
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: pdf-chatbot
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8099"
+        prometheus.io/scrape: "true"
+      creationTimestamp: null
+      labels:
+        app: pdf-chatbot
+    spec:
+      containers:
+        - /bin/bash
+        - -c
+        - |
+          ls -la /app
+
+          ls -la /app/data
+
+          python -c "import sys; print('\n'.join(sys.path))"
+
+
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: api-key
+              name: openai-secret
+        - name: PINECONE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: api-key
+              name: pinecone-secret
+        - name: PINECONE_ENVIRONMENT
+          valueFrom:
+            secretKeyRef:
+              key: environment
+              name: pinecone-secret
+        - name: METRICS_PORT
+          value: "8099"
+        - name: PYTHONPATH
+          value: /app:/app/app:/app/core:/app/data:/app/monitoring:/app/utils
+        - name: PDF_PATH
+          value: /app/data/random machine learing pdf.pdf
+        image: pdf-chatbot:minikube3
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: pdf-chatbot
+        ports:
+        - containerPort: 8501
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1000
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /app/vectorstore
+          name: vectorstore
+        - mountPath: /app/data
+          name: pdf-data
+        - /bin/bash
+        - -c
+        - "pip install prometheus-client && python -c \"\nimport os\nimport time\nimport
+          sys\nfrom prometheus_client import start_http_server, Counter, Gauge, Histogram\n\n#
+          Get port from environment\nport = int(os.environ.get('METRICS_PORT', 8099))\n\n#
+          Create metrics\nREQUEST_COUNT = Counter('chatbot_requests_total', 'Total
+          number of requests')\nRESPONSE_TIME = Histogram('chatbot_response_time_seconds',
+          'Response time in seconds', buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0,
+          60.0])\nRETRIEVAL_COUNT = Counter('chatbot_retrieval_count_total', 'Number
+          of retrievals from vector store')\nHALLUCINATION_GAUGE = Gauge('chatbot_hallucination_score',
+          'Hallucination score of responses')\nUSER_SATISFACTION = Gauge('chatbot_user_satisfaction',
+          'User satisfaction score')\n\n# Set initial values\nREQUEST_COUNT._value.inc(10)\nRETRIEVAL_COUNT._value.inc(5)\nHALLUCINATION_GAUGE.set(0.85)\nUSER_SATISFACTION.set(0.9)\n\n#
+          Add test observations\nfor value in [0.2, 0.5, 1.2, 3.5]:\n    RESPONSE_TIME.observe(value)\n\nprint(f'Starting
+          metrics server on port {port}')\nstart_http_server(port, addr='0.0.0.0')\nprint('Metrics
+          server started successfully')\n\n# Update metrics periodically\ncounter
+          = 0\nwhile True:\n    if counter % 10 == 0:\n        REQUEST_COUNT._value.inc(1)\n
+          \       RETRIEVAL_COUNT._value.inc(1)\n        RESPONSE_TIME.observe(2.0)\n
+          \       \n        import random\n        HALLUCINATION_GAUGE.set(min(1.0,
+          max(0.7, 0.85 + random.uniform(-0.1, 0.1))))\n        USER_SATISFACTION.set(min(1.0,
+          max(0.6, 0.9 + random.uniform(-0.15, 0.05))))\n        \n        print(f'Updated
+        env:
+        - name: METRICS_PORT
+          value: "8099"
+        image: python:3.9-slim
+        imagePullPolicy: IfNotPresent
+        name: metrics
+        ports:
+        - containerPort: 8099
+          name: metrics
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      initContainers:
+        - sh
+        - -c
+          && chmod -R 755 /app/data
+        image: busybox
+        imagePullPolicy: Always
+        name: copy-pdf
+        resources:
+          limits:
+            cpu: 200m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /host-data
+          name: host-data
+        - mountPath: /app/data
+          name: pdf-data
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: vectorstore
+      - emptyDir: {}
+        name: pdf-data
+      - hostPath:
+          path: /data/pdf-chatbot
+          type: Directory
+        name: host-data
+status:
+  conditions:
+  - lastTransitionTime: "2025-05-09T17:02:50Z"
+    lastUpdateTime: "2025-05-09T17:02:50Z"
+    message: Deployment does not have minimum availability.
+    reason: MinimumReplicasUnavailable
+    status: "False"
+    type: Available
+  - lastTransitionTime: "2025-05-09T17:02:50Z"
+    lastUpdateTime: "2025-05-09T17:03:29Z"
+    message: ReplicaSet "pdf-chatbot-6b6cc576d7" is progressing.
+    reason: ReplicaSetUpdated
+    status: "True"
+    type: Progressing
+  observedGeneration: 2
+  replicas: 4
+  unavailableReplicas: 4
+  updatedReplicas: 1

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8099"
+  labels:
+    app: pdf-chatbot
+  name: pdf-chatbot-service
+  namespace: default
+spec:
+  ports:
+  - name: http
+    port: 8501
+    protocol: TCP
+    targetPort: 8501
+  - name: metrics
+    port: 8099
+    protocol: TCP
+    targetPort: 8099
+  selector:
+    app: pdf-chatbot
+  type: LoadBalancer

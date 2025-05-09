@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pdf-files
+  namespace: default
+data:
+  # Note: This is just a placeholder. In a real-world scenario, you would 
+  # want to use a PVC or object storage for PDF files, especially for larger files
+  placeholder-file.txt: |
+    This is a placeholder file. For actual PDF files, use a PVC (PersistentVolumeClaim)
+    mounted to the pods, or implement code to pull files from object storage like 
+    S3, GCS, or other cloud storage options. 
