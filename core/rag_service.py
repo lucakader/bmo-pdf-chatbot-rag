@@ -11,6 +11,7 @@ from core.llm import LLMProvider
 from core.retrieval import EnhancedRetriever
 from core.validation import ResponseValidator, HallucinationCheck
 from monitoring.metrics import timing_decorator
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +22,14 @@ class RAGService:
         self,
         vector_store: VectorStore,
         llm_provider: LLMProvider,
-        use_hybrid_search: bool = True,
-        use_reranker: bool = True,
-        check_hallucinations: bool = True,
+        use_hybrid_search: bool = config.USE_HYBRID_SEARCH,
+        use_reranker: bool = config.RERANKER_ENABLED,
+        check_hallucinations: bool = config.HALLUCINATION_CHECK_ENABLED,
         confidence_threshold: float = 0.6,
-        vector_weight: float = 0.7,
-        bm25_weight: float = 0.3,
-        retrieval_k: int = 5,
-        bm25_docs_path: Optional[str] = None
+        vector_weight: float = config.VECTOR_WEIGHT,
+        bm25_weight: float = config.BM25_WEIGHT,
+        retrieval_k: int = config.RETRIEVAL_K,
+        bm25_docs_path: Optional[str] = config.BM25_DOCS_PATH
     ):
         """Initialize RAG service."""
         self.vector_store = vector_store

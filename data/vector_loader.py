@@ -25,6 +25,7 @@ try:
     from data.document import DocumentProcessor
     from langchain_openai import OpenAIEmbeddings
     import pinecone
+    import config
 except ImportError as e:
     logger.error(f"Import error: {e}")
     logger.error("Make sure all dependencies are installed.")
@@ -94,7 +95,8 @@ def initialize_vector_store(pdf_path, index_name, use_existing=False):
             logger.info(f"Upserted batch {i//batch_size + 1}/{(len(vectors_to_upsert)-1)//batch_size + 1}")
         
         # Save chunks for BM25
-        processor.save_chunks_for_bm25(docs, 'data/document_chunks.txt')
+        processor.save_chunks_for_bm25(docs, config.BM25_DOCS_PATH)
+        logger.info(f"Saved document chunks for BM25 to {config.BM25_DOCS_PATH}")
         
         logger.info("Vector store initialization complete")
         return True

@@ -15,6 +15,11 @@ DEFAULT_SIMILARITY_TOP_K = int(os.getenv("DEFAULT_SIMILARITY_TOP_K", "5"))
 USE_HYBRID_SEARCH = os.getenv("USE_HYBRID_SEARCH", "false").lower() == "true"
 RERANKER_ENABLED = os.getenv("RERANKER_ENABLED", "true").lower() == "true"
 
+# BM25 settings
+BM25_DOCS_PATH = os.getenv("BM25_DOCS_PATH", "data/document_chunks.txt")
+VECTOR_WEIGHT = float(os.getenv("VECTOR_WEIGHT", "0.7"))
+BM25_WEIGHT = float(os.getenv("BM25_WEIGHT", "0.3"))
+
 # LLM settings
 DEFAULT_LLM_MODEL = os.getenv("DEFAULT_LLM_MODEL", "gpt-3.5-turbo")
 DEFAULT_LLM_TEMPERATURE = float(os.getenv("DEFAULT_LLM_TEMPERATURE", "0.0"))
