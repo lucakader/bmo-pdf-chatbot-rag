@@ -12,6 +12,7 @@ handle_error() {
 
 # Check required environment variables
 echo "Checking required environment variables..."
+
 if [ -z "$OPENAI_API_KEY" ]; then
   handle_error "OPENAI_API_KEY environment variable is not set. Please set it with: export OPENAI_API_KEY=your_api_key"
 fi
@@ -26,8 +27,8 @@ if [ -z "$PINECONE_ENVIRONMENT" ]; then
 fi
 
 # Check if PDF file exists
-if [ ! -f "random_machine_learning_pdf.pdf" ]; then
-  handle_error "PDF file not found! Please make sure 'random_machine_learning_pdf.pdf' exists in the current directory."
+if [ ! -f "data/random_machine_learning_pdf.pdf" ]; then
+  handle_error "PDF file not found! Please make sure 'random_machine_learning_pdf.pdf' exists in the data directory."
 fi
 
 echo "Building the Docker image for the PDF Chatbot..."
@@ -45,9 +46,16 @@ kubectl create secret generic openai-secret \
   --from-literal=api-key="$OPENAI_API_KEY" \
   --dry-run=client -o yaml | kubectl apply -f - || handle_error "Failed to create OpenAI secret"
 
+# Check if PINECONE_INDEX_NAME is set
+if [ -z "$PINECONE_INDEX_NAME" ]; then
+  handle_error "PINECONE_INDEX_NAME environment variable is not set. Please set it with: export PINECONE_INDEX_NAME=your_index_name"
+fi
+echo "Using Pinecone index: $PINECONE_INDEX_NAME"
+
 kubectl create secret generic pinecone-secret \
   --from-literal=api-key="$PINECONE_API_KEY" \
   --from-literal=environment="$PINECONE_ENVIRONMENT" \
+  --from-literal=index-name="$PINECONE_INDEX_NAME" \
   --dry-run=client -o yaml | kubectl apply -f - || handle_error "Failed to create Pinecone secret"
 
 # Create ConfigMap for PDF files
@@ -60,6 +68,10 @@ echo "Applying ConfigMaps..."
 echo "Applying Prometheus configuration..."
 kubectl apply -f k8s/prometheus-config.yaml --force || echo "No prometheus-config.yaml found or application failed, skipping"
 
+# Apply Prometheus deployment
+echo "Deploying Prometheus..."
+kubectl apply -f k8s/prometheus.yaml --force || echo "No prometheus.yaml found or application failed, skipping"
+
 # Ensure Prometheus deployment has at least 1 replica
 echo "Ensuring Prometheus deployment has correct replicas..."
 kubectl scale deployment prometheus --replicas=1 2>/dev/null || echo "Prometheus deployment scaling failed, may need to be created first"
@@ -69,7 +81,7 @@ echo "Creating service..."
 kubectl apply -f k8s/service.yaml --force || echo "Warning: Service application had issues, continuing anyway..."
 
 # Run the initialization job
-echo "Running initialization job to load vector store..."
+echo "Running initialization job to load documents into existing Pinecone index and generate BM25 chunks..."
 kubectl delete job pdf-chatbot-init 2>/dev/null || true  # Delete any previous job
 kubectl apply -f k8s/init-job.yaml || handle_error "Failed to create initialization job"
 

@@ -66,14 +66,12 @@ def initialize_metrics():
 def initialize_vector_store():
     """Initialize the vector store."""
     try:
-        # Read index name from file
-        if not os.path.exists("vectorstore/index_name.txt"):
-            logger.error("Vector store index name not found. Please run the application setup first.")
-            st.error("Vector store index name not found. Please run the start.sh script first to initialize the vector store.")
+        # Get index name from environment variable
+        index_name = os.environ.get("PINECONE_INDEX_NAME")
+        if not index_name:
+            logger.error("PINECONE_INDEX_NAME environment variable not found.")
+            st.error("PINECONE_INDEX_NAME environment variable not found. Please set this environment variable.")
             st.stop()
-            
-        with open("vectorstore/index_name.txt", "r") as f:
-            index_name = f.read().strip()
         
         logger.info(f"Using Pinecone index: {index_name}")
         

@@ -14,12 +14,12 @@ spec:
     spec:
       containers:
       - name: vector-loader
-        image: pdf-chatbot:minikube8
+        image: pdf-chatbot:latest
         imagePullPolicy: IfNotPresent
         command: 
         - "sh"
         - "-c"
-        - "cd /app && PYTHONPATH=/app:/app/python_modules python vector_loader.py --index-name pdf-chatbot-fc47e81f08"
+        - "cd /app && PYTHONPATH=/app:/app/python_modules python data/vector_loader.py"
         resources:
           requests:
             memory: "1Gi"
@@ -43,6 +43,11 @@ spec:
             secretKeyRef:
               name: pinecone-secret
               key: environment
+        - name: PINECONE_INDEX_NAME
+          valueFrom:
+            secretKeyRef:
+              name: pinecone-secret
+              key: index-name
         - name: PYTHONPATH
           value: "/app:/app/python_modules:/app/app:/app/core:/app/data:/app/monitoring:/app/utils"
         - name: VECTOR_INIT_TIMEOUT

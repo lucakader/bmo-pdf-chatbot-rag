@@ -47,7 +47,7 @@ RUN pip install -e .
 
 # Copy Python modules to a secure location
 RUN mkdir -p /app/python_modules/data
-COPY data/__init__.py data/document.py data/vector_store.py /app/python_modules/data/
+COPY data/__init__.py data/document.py data/vector_store.py data/vector_loader.py /app/python_modules/data/
 
 # Ensure document_chunks.txt exists for BM25 retrieval
 RUN mkdir -p /app/data

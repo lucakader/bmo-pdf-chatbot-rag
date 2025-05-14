@@ -22,16 +22,16 @@ if [ -z "$PINECONE_ENVIRONMENT" ]; then
   export PINECONE_ENVIRONMENT="us-east-1"
 fi
 
+if [ -z "$PINECONE_INDEX_NAME" ]; then
+  echo "ERROR: PINECONE_INDEX_NAME environment variable is not set."
+  echo "Please set this variable before starting the application."
+  exit 1
+fi
+echo "Using Pinecone index: $PINECONE_INDEX_NAME"
+
 # Add current directory to Python path
 export PYTHONPATH=${PYTHONPATH}:$(pwd)
 echo "Setting PYTHONPATH to: ${PYTHONPATH}"
-
-# Force the index name if provided as environment variable
-if [ -n "$PINECONE_INDEX_NAME" ]; then
-  echo "Using index name from environment: $PINECONE_INDEX_NAME"
-  mkdir -p vectorstore
-  echo "$PINECONE_INDEX_NAME" > vectorstore/index_name.txt
-fi
 
 # Required ports
 STREAMLIT_PORT=8501

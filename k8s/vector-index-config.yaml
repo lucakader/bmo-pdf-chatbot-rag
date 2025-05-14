@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-index-config
+  namespace: default
+data:
+  index_name: "pdf-chatbot-fc47e81f08" 
