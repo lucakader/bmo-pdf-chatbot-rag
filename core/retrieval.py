@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional, Union
 from langchain.schema import Document
 import logging
+import json
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain.retrievers.ensemble import EnsembleRetriever
@@ -55,6 +56,33 @@ class EnhancedRetriever:
             self.retriever = self.base_retriever
             
         logger.info(f"Created retriever: hybrid_search={self.use_hybrid_search}, reranker={self.use_reranker}")
+
+    def configure(
+        self,
+        use_hybrid_search: Optional[bool] = None,
+        use_reranker: Optional[bool] = None,
+        vector_weight: Optional[float] = None,
+        bm25_weight: Optional[float] = None,
+        retrieval_k: Optional[int] = None
+    ) -> None:
+        """Update runtime retrieval settings and rebuild the retriever if needed."""
+        changed = False
+
+        updates = {
+            "use_hybrid_search": use_hybrid_search,
+            "use_reranker": use_reranker,
+            "vector_weight": vector_weight,
+            "bm25_weight": bm25_weight,
+            "retrieval_k": retrieval_k,
+        }
+        for name, value in updates.items():
+            if value is not None and getattr(self, name) != value:
+                setattr(self, name, value)
+                changed = True
+
+        if changed:
+            logger.info("Rebuilding retriever with runtime settings")
+            self._create_base_retriever()
     
     def _create_hybrid_retriever(self, vector_retriever):
         """Create a hybrid retriever combining vector search with BM25."""
@@ -129,14 +157,9 @@ class EnhancedRetriever:
         """Load text chunks from file for BM25 retrieval."""
         try:
             with open(file_path, "r") as f:
-                text = f.read()
-                
-            # Split into chunks for BM25
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=1000,
-                chunk_overlap=200
-            )
-            self.documents = text_splitter.create_documents([text])
+                raw_text = f.read()
+
+            self.documents = self._parse_bm25_documents(raw_text)
             logger.info(f"Loaded {len(self.documents)} document chunks for BM25 retrieval")
             
             # Recreate the base retriever with new documents
@@ -146,3 +169,32 @@ class EnhancedRetriever:
         except Exception as e:
             logger.error(f"Error loading documents for BM25: {str(e)}")
             return False 
+
+    def _parse_bm25_documents(self, raw_text: str) -> List[Document]:
+        """Parse BM25 chunks from JSONL, falling back to legacy plain text files."""
+        documents = []
+        for line in raw_text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                documents = []
+                break
+
+            content = payload.get("page_content") or payload.get("text")
+            if content:
+                documents.append(Document(
+                    page_content=content,
+                    metadata=payload.get("metadata", {})
+                ))
+
+        if documents:
+            return documents
+
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200
+        )
+        return text_splitter.create_documents([raw_text]) if raw_text.strip() else []

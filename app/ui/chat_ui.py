@@ -2,6 +2,7 @@ import streamlit as st
 import uuid
 import logging
 from typing import Dict, Any
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -43,19 +44,19 @@ class ChatUI:
             st.title("Options")
             
             # Retrieval options
-            use_reranker = st.checkbox("Use Reranker", value=True, 
+            use_reranker = st.checkbox("Use Reranker", value=config.RERANKER_ENABLED, 
                                     help="Use a reranker to improve retrieval results")
-            use_hybrid_search = st.checkbox("Use Hybrid Search", value=True, 
+            use_hybrid_search = st.checkbox("Use Hybrid Search", value=config.USE_HYBRID_SEARCH, 
                                          help="Combine semantic search with keyword search")
             
-            vector_weight = 0.7
+            vector_weight = config.VECTOR_WEIGHT
             if use_hybrid_search:
                 vector_weight = st.slider("Vector Search Weight", min_value=0.0, max_value=1.0, 
-                                       value=0.7, step=0.1,
+                                       value=config.VECTOR_WEIGHT, step=0.1,
                                        help="Weight given to semantic search results (vs keyword search)")
             
             # Response validation options
-            check_for_hallucinations = st.checkbox("Check for Hallucinations", value=True, 
+            check_for_hallucinations = st.checkbox("Check for Hallucinations", value=config.HALLUCINATION_CHECK_ENABLED, 
                                                help="Check generated responses for hallucinations")
             confidence_threshold = st.slider("Confidence Threshold", min_value=0.0, max_value=1.0, 
                                           value=0.6, step=0.1,
@@ -63,12 +64,12 @@ class ChatUI:
             
             # LLM options
             st_temperature = st.slider("Temperature", min_value=0.0, max_value=1.0, 
-                                     value=0.0, step=0.1, 
+                                     value=config.DEFAULT_LLM_TEMPERATURE, step=0.1, 
                                      help="Higher temperature means more creative but potentially less accurate responses")
             
             # Number of documents to retrieve
             retrieval_k = st.slider("Number of documents to retrieve", min_value=1, max_value=10, 
-                                  value=5, help="Number of documents to retrieve from the vector store")
+                                  value=config.RETRIEVAL_K, help="Number of documents to retrieve from the vector store")
             
             # Feedback mechanism
             st.subheader("Feedback")
@@ -104,6 +105,7 @@ class ChatUI:
                 st.chat_message("user").write(message["content"])
             else:
                 st.chat_message("assistant").write(message["content"])
+                self.render_retrieved_sources(message.get("retrieved_docs", []), message.get("retrieval_settings", {}))
                 
                 # Show hallucination warning if needed
                 if "hallucination_check" in message and message["hallucination_check"]["is_hallucination"]:
@@ -126,6 +128,26 @@ class ChatUI:
                             st.subheader("Verified Claims")
                             for claim in message["hallucination_check"]["verified_claims"]:
                                 st.success(f"• {claim}")
+
+    def render_retrieved_sources(self, retrieved_docs, retrieval_settings=None):
+        """Render retrieved chunks so users can inspect the grounding context."""
+        if not retrieved_docs:
+            return
+
+        with st.expander("Retrieved Sources"):
+            if retrieval_settings:
+                st.caption(
+                    "k={retrieval_k} | hybrid={use_hybrid_search} | reranker={use_reranker} | "
+                    "vector_weight={vector_weight}".format(**retrieval_settings)
+                )
+
+            for doc in retrieved_docs:
+                metadata = doc.get("metadata", {})
+                source = metadata.get("source", "unknown source")
+                page = metadata.get("page")
+                page_label = f", page {page}" if page is not None else ""
+                st.markdown(f"**Source {doc.get('rank', '?')}**: `{source}`{page_label}")
+                st.write(doc.get("preview") or doc.get("content", "")[:300])
     
     def process_query(self, query: str, options: Dict[str, Any]):
         """
@@ -147,11 +169,16 @@ class ChatUI:
             # Show processing status
             with st.status("Retrieving relevant information..."):
                 # Call RAG service to process query
-                result = self.rag_service.query(query)
+                result = self.rag_service.query(query, **options)
                 
             # Display the response
             response_message = st.chat_message("assistant")
             response_message.write(result["response"])
+            with response_message.container():
+                self.render_retrieved_sources(
+                    result.get("retrieved_docs", []),
+                    result.get("retrieval_settings", {})
+                )
             
             # Show hallucination warning if needed
             if "hallucination_check" in result and result["hallucination_check"]["is_hallucination"]:
@@ -176,7 +203,9 @@ class ChatUI:
             history_entry = {
                 "role": "assistant", 
                 "content": result["response"], 
-                "validation_info": result.get("validation_info", {})
+                "validation_info": result.get("validation_info", {}),
+                "retrieved_docs": result.get("retrieved_docs", []),
+                "retrieval_settings": result.get("retrieval_settings", {})
             }
             
             if "hallucination_check" in result:

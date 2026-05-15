@@ -2,6 +2,7 @@ from typing import List, Optional, Dict, Any
 import os
 import logging
 import hashlib
+import json
 from langchain.schema import Document
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -90,12 +91,14 @@ class DocumentProcessor:
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             
-            # Write chunks to file
+            # Write chunks as JSONL so BM25 retrieval keeps page/source metadata.
             with open(output_path, 'w') as f:
-                for i, chunk in enumerate(chunks):
-                    f.write(f"--- Chunk {i+1} ---\n")
-                    f.write(chunk.page_content)
-                    f.write("\n\n")
+                for chunk in chunks:
+                    f.write(json.dumps({
+                        "page_content": chunk.page_content,
+                        "metadata": chunk.metadata
+                    }))
+                    f.write("\n")
             
             logger.info(f"Wrote {len(chunks)} chunks to {output_path}")
             return True

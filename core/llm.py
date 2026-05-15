@@ -4,10 +4,10 @@ import os
 import logging
 import time
 from collections import OrderedDict
+from operator import itemgetter
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 from prometheus_client import Counter, Histogram
 
 logger = logging.getLogger(__name__)
@@ -134,12 +134,13 @@ class OpenAIProvider(LLMProvider):
         """Get an LLM that returns structured output."""
         return self.llm.with_structured_output(output_class)
         
-    def create_rag_chain(self, prompt):
+    def create_rag_chain(self, prompt, temperature: Optional[float] = None):
         """Create a RAG chain with the LLM."""
+        llm = self.get_llm(temperature=temperature) if temperature is not None else self.llm
         return (
-            {"context": RunnablePassthrough(), "question": RunnablePassthrough()}
+            {"context": itemgetter("context"), "question": itemgetter("question")}
             | prompt
-            | self.llm
+            | llm
             | StrOutputParser()
         )
 
@@ -186,9 +187,9 @@ class CachedLLMProvider(LLMProvider):
         """Get an LLM that returns structured output."""
         return self.base_provider.with_structured_output(output_class)
         
-    def create_rag_chain(self, prompt):
+    def create_rag_chain(self, prompt, temperature: Optional[float] = None):
         """Create a RAG chain with the LLM by delegating to the base provider."""
-        return self.base_provider.create_rag_chain(prompt)
+        return self.base_provider.create_rag_chain(prompt, temperature=temperature)
         
     def _create_cache_key(self, prompt: str, params: Dict[str, Any]) -> str:
         """Create a unique cache key based on prompt and parameters."""

@@ -87,9 +87,42 @@ class RAGService:
         
         Query: {question}
         """)
+
+    def _current_retrieval_settings(self) -> Dict[str, Any]:
+        """Return retrieval settings used for this query."""
+        return {
+            "use_hybrid_search": self.retriever.use_hybrid_search,
+            "use_reranker": self.retriever.use_reranker,
+            "vector_weight": self.retriever.vector_weight,
+            "bm25_weight": self.retriever.bm25_weight,
+            "retrieval_k": self.retriever.retrieval_k,
+        }
+
+    def _serialize_retrieved_docs(self, docs: List[Document]) -> List[Dict[str, Any]]:
+        """Serialize retrieved documents for debugging, UI display, and tests."""
+        serialized_docs = []
+        for rank, doc in enumerate(docs, start=1):
+            content = doc.page_content.strip()
+            serialized_docs.append({
+                "rank": rank,
+                "content": content,
+                "preview": content[:300],
+                "metadata": doc.metadata,
+            })
+        return serialized_docs
     
     @timing_decorator(operation_name="rag_query")
-    def query(self, question: str) -> Dict[str, Any]:
+    def query(
+        self,
+        question: str,
+        use_hybrid_search: Optional[bool] = None,
+        use_reranker: Optional[bool] = None,
+        vector_weight: Optional[float] = None,
+        check_for_hallucinations: Optional[bool] = None,
+        confidence_threshold: Optional[float] = None,
+        temperature: Optional[float] = None,
+        retrieval_k: Optional[int] = None
+    ) -> Dict[str, Any]:
         """
         Process a question using RAG.
         
@@ -102,11 +135,60 @@ class RAGService:
         try:
             start_time = time.time()
             query_id = str(uuid.uuid4())
+            question = question.strip()
+
+            if not question:
+                return {
+                    "query_id": query_id,
+                    "question": question,
+                    "response": "Please ask a question about the indexed document.",
+                    "retrieved_docs": [],
+                    "retrieval_settings": self._current_retrieval_settings(),
+                    "processing_time": time.time() - start_time,
+                    "validation_info": {"warning": "Empty question"},
+                }
             
+            bm25_weight = None
+            if vector_weight is not None:
+                bm25_weight = max(0.0, min(1.0, 1.0 - vector_weight))
+
+            self.retriever.configure(
+                use_hybrid_search=use_hybrid_search,
+                use_reranker=use_reranker,
+                vector_weight=vector_weight,
+                bm25_weight=bm25_weight,
+                retrieval_k=retrieval_k
+            )
+            hallucination_check_enabled = (
+                self.check_hallucinations
+                if check_for_hallucinations is None
+                else check_for_hallucinations
+            )
+            if confidence_threshold is not None:
+                self.confidence_threshold = confidence_threshold
+                self.validator.confidence_threshold = confidence_threshold
+
             # Retrieve relevant documents
             logger.info(f"[{query_id}] Retrieving documents for query: {question[:50]}...")
             docs = self.retriever.retrieve(question)
             logger.info(f"[{query_id}] Retrieved {len(docs)} documents in {time.time() - start_time:.2f}s")
+
+            retrieved_docs = self._serialize_retrieved_docs(docs)
+            retrieval_settings = self._current_retrieval_settings()
+
+            if not docs:
+                return {
+                    "query_id": query_id,
+                    "question": question,
+                    "response": "I don't have enough information in the indexed document to answer this question.",
+                    "retrieved_docs": [],
+                    "retrieval_settings": retrieval_settings,
+                    "processing_time": time.time() - start_time,
+                    "validation_info": {
+                        "has_citations": False,
+                        "warning": "No retrieved context",
+                    },
+                }
             
             # Format retrieved documents
             context_text, retrieval_id = self.retriever.format_retrieved_docs(docs)
@@ -114,7 +196,12 @@ class RAGService:
             # Generate response
             logger.info(f"[{query_id}] Generating response...")
             response_start = time.time()
-            response = self.rag_chain.invoke({
+            rag_chain = (
+                self.llm_provider.create_rag_chain(self.prompt, temperature=temperature)
+                if temperature is not None
+                else self.rag_chain
+            )
+            response = rag_chain.invoke({
                 "context": context_text, 
                 "question": question
             })
@@ -122,7 +209,7 @@ class RAGService:
             
             # Check for hallucinations if enabled
             hallucination_result = None
-            if self.check_hallucinations:
+            if hallucination_check_enabled:
                 logger.info(f"[{query_id}] Checking for hallucinations...")
                 hallucination_result = self.validator.check_hallucination(response, context_text, question)
                 
@@ -165,10 +252,8 @@ class RAGService:
                 "query_id": query_id,
                 "question": question,
                 "response": final_response,
-                "retrieved_docs": [{
-                    "content": doc.page_content,
-                    "metadata": doc.metadata
-                } for doc in docs],
+                "retrieved_docs": retrieved_docs,
+                "retrieval_settings": retrieval_settings,
                 "processing_time": time.time() - start_time,
                 "validation_info": validation_info
             }

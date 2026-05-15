@@ -114,13 +114,10 @@ def initialize_rag_service(vector_store, llm_provider):
     """Initialize the RAG service."""
     try:
         # Check if BM25 docs exist
-        bm25_docs_path = "data/document_chunks.txt"
-        if not os.path.exists(bm25_docs_path):
-            logger.warning(f"BM25 document chunks not found at {bm25_docs_path}")
-            logger.info("Creating empty file for BM25")
-            os.makedirs(os.path.dirname(bm25_docs_path), exist_ok=True)
-            with open(bm25_docs_path, "w") as f:
-                f.write("")  # Create empty file
+        bm25_docs_path = config.BM25_DOCS_PATH
+        if not os.path.exists(bm25_docs_path) or os.path.getsize(bm25_docs_path) == 0:
+            logger.warning(f"BM25 document chunks not available at {bm25_docs_path}; hybrid search will use vector retrieval only until documents are indexed")
+            bm25_docs_path = None
         
         # Create RAG service
         rag_service = RAGService(
@@ -130,8 +127,8 @@ def initialize_rag_service(vector_store, llm_provider):
             use_reranker=config.RERANKER_ENABLED,
             check_hallucinations=config.HALLUCINATION_CHECK_ENABLED,
             confidence_threshold=0.6,
-            vector_weight=0.7,
-            bm25_weight=0.3,
+            vector_weight=config.VECTOR_WEIGHT,
+            bm25_weight=config.BM25_WEIGHT,
             retrieval_k=config.RETRIEVAL_K,
             bm25_docs_path=bm25_docs_path
         )
