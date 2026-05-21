@@ -163,13 +163,6 @@ tests/               Offline unit tests for the RAG contract
 - Add screenshots or a short GIF showing the retrieved-sources panel.
 - Modernize the Pinecone initialization path if the project upgrades fully to the latest SDK.
 
-## Resume Talking Points
-
-- Built an end-to-end RAG application over PDFs using OpenAI, Pinecone, LangChain, and Streamlit.
-- Implemented hybrid semantic and keyword retrieval with source metadata preservation.
-- Added grounding guardrails, retrieval transparency, and optional hallucination validation.
-- Containerized the app and included Kubernetes, Prometheus, and Grafana for production-style deployment.
-- Added offline unit tests around core RAG behavior so the project is reviewable without external services.
 
 ## Cleanup
 
